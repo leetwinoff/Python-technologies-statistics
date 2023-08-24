@@ -11,6 +11,7 @@ PYTHON_VACANCIES = urljoin(BASE_URL, "?all-keywords=&any-of-keywords=&exclude-ke
 
 VACANCY_OUTPUT_CSV_PATH = "vacancies.csv"
 
+
 @dataclass
 class PythonJobVacancy:
     title: str
@@ -56,7 +57,6 @@ def get_num_pages(page_soup: BeautifulSoup) -> int:
     return int(pagination.select("li")[-2].text)
 
 
-
 def get_job_listings() -> List[PythonJobVacancy]:
 
     page = requests.get(PYTHON_VACANCIES).content
@@ -74,12 +74,16 @@ def get_job_listings() -> List[PythonJobVacancy]:
     return all_vacancies
 
 
-
+def write_vacancies_to_csv(vacancies: List[PythonJobVacancy]) -> None:
+    with open(VACANCY_OUTPUT_CSV_PATH, "w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(["Title", "Location", "Description", "Additional Information", "Views", "Applications"])
+        writer.writerows([astuple(vacancy) for vacancy in vacancies])
 
 
 def main():
     vacancies = get_job_listings()
-
+    write_vacancies_to_csv(vacancies)
 
 
 if __name__ == "__main__":

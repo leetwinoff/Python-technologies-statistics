@@ -1,15 +1,12 @@
 import csv
+import re
 from dataclasses import dataclass, astuple
 from typing import List
-from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
-BASE_URL = "https://djinni.co/jobs/"
-PYTHON_VACANCIES = urljoin(BASE_URL, "?all-keywords=&any-of-keywords=&exclude-keywords=&primary_keyword=Python")
-
-VACANCY_OUTPUT_CSV_PATH = "vacancies.csv"
+from config import ALL_TECHNOLOGIES_LOWER, PYTHON_VACANCIES, VACANCY_OUTPUT_CSV_PATH
 
 
 @dataclass
@@ -20,25 +17,53 @@ class PythonJobVacancy:
     additional_information: List[str]
     views: int
     applications: int
+    filtered_technologies: List[str]
+
+
+def get_clean_description(vacancy_soup: BeautifulSoup):
+    description_element = vacancy_soup.select_one(".job-list-item__description > span")
+    description = description_element.get("data-original-text", "").strip().rstrip().lower()
+    description = BeautifulSoup(description, "html.parser").get_text()
+    return description
+
+
+def get_technologies_from_description(description):
+    description_words = re.split(r'[ /,]', description)
+    description_words = description_words
+    filtered_technologies = set([tech.upper() for tech in description_words if tech in ALL_TECHNOLOGIES_LOWER])
+    return list(filtered_technologies)
+
+
+def get_clean_location(vacancy_soup: BeautifulSoup):
+    location = vacancy_soup.select(".location-text")
+    location_parts = []
+
+    for element in location:
+        location_parts.extend(re.split(r'[\n\W_]+', element.text.strip()))
+
+    non_empty_location_parts = [part for part in location_parts if part]
+    return non_empty_location_parts
 
 
 def parse_single_vacancy(vacancy_soup: BeautifulSoup) -> PythonJobVacancy:
-
-    description_element = vacancy_soup.select_one(".job-list-item__description > span")
+    description = get_clean_description(vacancy_soup)
+    location = get_clean_location(vacancy_soup)
     additional_information_elements = vacancy_soup.select(".job-list-item__job-info .nobr")
     views_element = vacancy_soup.select_one(".bi-eye")
     applications_element = vacancy_soup.select_one(".bi-people")
-
+    filtered_technologies = get_technologies_from_description(description)
     views = int(views_element.next_sibling.strip()) if views_element else 0
     applications = int(applications_element.next_sibling.strip()) if applications_element else 0
 
+
     return PythonJobVacancy(
         title=vacancy_soup.select_one(".job-list-item__link").text.strip().rstrip(),
-        location=vacancy_soup.select_one(".location-text").text.strip().rstrip(),
-        description=description_element.get("data-original-text", "").strip().rstrip(),
-        additional_information=[info.text.strip().rstrip() for info in additional_information_elements],
+        location=location,
+        description=description,
+        additional_information=[info.text.replace('·', '').strip() for info in additional_information_elements],
         views=views,
-        applications=applications
+        applications=applications,
+        filtered_technologies=filtered_technologies
     )
 
 
@@ -77,7 +102,8 @@ def get_job_listings() -> List[PythonJobVacancy]:
 def write_vacancies_to_csv(vacancies: List[PythonJobVacancy]) -> None:
     with open(VACANCY_OUTPUT_CSV_PATH, "w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
-        writer.writerow(["Title", "Location", "Description", "Additional Information", "Views", "Applications"])
+        writer.writerow([
+            "Title", "Location", "Description", "Additional Information", "Views", "Applications", "Filtered Technologies"])
         writer.writerows([astuple(vacancy) for vacancy in vacancies])
 
 

@@ -22,15 +22,19 @@ class PythonJobVacancy:
 
 def get_clean_description(vacancy_soup: BeautifulSoup):
     description_element = vacancy_soup.select_one(".job-list-item__description > span")
-    description = description_element.get("data-original-text", "").strip().rstrip().lower()
+    description = (
+        description_element.get("data-original-text", "").strip().rstrip().lower()
+    )
     description = BeautifulSoup(description, "html.parser").get_text()
     return description
 
 
 def get_technologies_from_description(description):
-    description_words = re.split(r'[ /,]', description)
+    description_words = re.split(r"[ /,]", description)
     description_words = description_words
-    filtered_technologies = set([tech.upper() for tech in description_words if tech in ALL_TECHNOLOGIES_LOWER])
+    filtered_technologies = set(
+        [tech.upper() for tech in description_words if tech in ALL_TECHNOLOGIES_LOWER]
+    )
     return list(filtered_technologies)
 
 
@@ -39,31 +43,37 @@ def get_clean_location(vacancy_soup: BeautifulSoup):
     location_parts = []
 
     for element in location:
-        location_parts.extend(re.split(r'[\n\W_]+', element.text.strip()))
+        location_parts.extend(re.split(r"[\n\W_]+", element.text.strip()))
 
-    non_empty_location_parts = [part for part in location_parts if part]
+    non_empty_location_parts = list(filter(bool, location_parts))
     return non_empty_location_parts
 
 
 def parse_single_vacancy(vacancy_soup: BeautifulSoup) -> PythonJobVacancy:
     description = get_clean_description(vacancy_soup)
     location = get_clean_location(vacancy_soup)
-    additional_information_elements = vacancy_soup.select(".job-list-item__job-info .nobr")
+    additional_information_elements = vacancy_soup.select(
+        ".job-list-item__job-info .nobr"
+    )
     views_element = vacancy_soup.select_one(".bi-eye")
     applications_element = vacancy_soup.select_one(".bi-people")
     filtered_technologies = get_technologies_from_description(description)
     views = int(views_element.next_sibling.strip()) if views_element else 0
-    applications = int(applications_element.next_sibling.strip()) if applications_element else 0
-
+    applications = (
+        int(applications_element.next_sibling.strip()) if applications_element else 0
+    )
 
     return PythonJobVacancy(
         title=vacancy_soup.select_one(".job-list-item__link").text.strip().rstrip(),
         location=location,
         description=description,
-        additional_information=[info.text.replace('·', '').strip() for info in additional_information_elements],
+        additional_information=[
+            info.text.replace("·", "").strip()
+            for info in additional_information_elements
+        ],
         views=views,
         applications=applications,
-        filtered_technologies=filtered_technologies
+        filtered_technologies=filtered_technologies,
     )
 
 
@@ -83,7 +93,6 @@ def get_num_pages(page_soup: BeautifulSoup) -> int:
 
 
 def get_job_listings() -> List[PythonJobVacancy]:
-
     page = requests.get(PYTHON_VACANCIES).content
     first_page_soup = BeautifulSoup(page, "html.parser")
 
@@ -102,8 +111,17 @@ def get_job_listings() -> List[PythonJobVacancy]:
 def write_vacancies_to_csv(vacancies: List[PythonJobVacancy]) -> None:
     with open(VACANCY_OUTPUT_CSV_PATH, "w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
-        writer.writerow([
-            "Title", "Location", "Description", "Additional Information", "Views", "Applications", "Filtered Technologies"])
+        writer.writerow(
+            [
+                "Title",
+                "Location",
+                "Description",
+                "Additional Information",
+                "Views",
+                "Applications",
+                "Filtered Technologies",
+            ]
+        )
         writer.writerows([astuple(vacancy) for vacancy in vacancies])
 
 
@@ -114,4 +132,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

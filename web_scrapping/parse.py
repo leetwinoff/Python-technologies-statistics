@@ -45,7 +45,7 @@ def get_clean_location(vacancy_soup: BeautifulSoup):
     for element in location:
         location_parts.extend(re.split(r"[\n\W_]+", element.text.strip()))
 
-    non_empty_location_parts = [part for part in location_parts if part]
+    non_empty_location_parts = list(filter(bool, location_parts))
     return non_empty_location_parts
 
 
